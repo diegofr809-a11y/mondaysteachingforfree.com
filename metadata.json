@@ -1,0 +1,6 @@
+{
+  "name": "Spotify",
+  "description": "Spotify for Windows - modern desktop music player with instant playback, personalized playlists, and full artist discographies.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

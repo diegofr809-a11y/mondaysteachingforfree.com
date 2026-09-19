@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spotify</title>
+    <meta name="description" content="Spotify for Windows - modern desktop music player with instant playback, personalized playlists, and full artist discographies." />
+    <meta property="og:title" content="Spotify" />
+    <meta property="og:description" content="Spotify for Windows - modern desktop music player with instant playback, personalized playlists, and full artist discographies." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22%231db954%22><circle cx=%2212%22 cy=%2212%22 r=%2210%22 fill=%22%231db954%22/><path d=%22M7 9.5c3.2-1 6.8-.7 10 1M7.5 12.5c2.7-.8 5.7-.6 8.5.8M8 15.5c2.2-.6 4.7-.5 7 .6%22 stroke=%22%23000%22 stroke-width=%221.8%22 stroke-linecap=%22round%22 fill=%22none%22/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- SoundCloud Official HTML5 Widget API -->
+    <script src="https://w.soundcloud.com/player/api.js"></script>
+  </head>
+  <body class="bg-[var(--bg-base)] text-[var(--text-main)] antialiased min-h-screen">
+    <div id="root"></div>
+    <script
+      id="main-entry"
+      type="module"
+      src="/src/main.jsx"
+      onerror="
+        if (!window.__fallback_loaded) {
+          window.__fallback_loaded = true;
+          const s = document.createElement('script');
+          s.type = 'module';
+          s.crossOrigin = 'anonymous';
+          s.src = './assets/index.js';
+          document.head.appendChild(s);
+          const l = document.createElement('link');
+          l.rel = 'stylesheet';
+          l.href = './assets/index.css';
+          document.head.appendChild(l);
+        }
+      "
+    ></script>
+    <script>
+      // On static hosts like GitHub Pages where raw JSX cannot execute, load the precompiled bundle
+      if (!document.querySelector('script[src*="./assets/index.js"]') && (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:')) {
+        var entry = document.getElementById('main-entry');
+        if (entry) {
+          entry.remove();
+        }
+        var timestamp = Date.now();
+        var s = document.createElement('script');
+        s.type = 'module';
+        s.crossOrigin = 'anonymous';
+        s.src = './assets/index.js?v=' + timestamp;
+        document.head.appendChild(s);
+        var l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = './assets/index.css?v=' + timestamp;
+        document.head.appendChild(l);
+      }
+    </script>
+  </body>
+</html>
+
