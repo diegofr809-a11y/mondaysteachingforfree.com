@@ -6,9 +6,9 @@ import {
   Search,
   Plus,
   Dices,
-  Disc3,
 } from 'lucide-react';
 import { sounds } from '../../utils/sound';
+import { SpotifyIcon } from '../player/SpotifyIcon';
 
 export const WindowsDesktop = ({
   games = [],
@@ -33,7 +33,7 @@ export const WindowsDesktop = ({
       title: 'Spotify',
       type: 'window',
       windowId: 'player',
-      icon: Disc3,
+      icon: SpotifyIcon,
     },
     {
       id: 'win-games',

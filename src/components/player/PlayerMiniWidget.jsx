@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, Pause, SkipBack, SkipForward, Maximize2 } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerMiniWidget = ({ onOpenPlayer, isPlayerWindowOpen }) => {
   const {
@@ -23,6 +24,7 @@ export const PlayerMiniWidget = ({ onOpenPlayer, isPlayerWindowOpen }) => {
         <img
           src={currentTrack.coverUrl}
           alt={currentTrack.title}
+          onError={(e) => handleImageError(e, null, currentTrack.title, currentTrack.artist)}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           referrerPolicy="no-referrer"
         />

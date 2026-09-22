@@ -13,10 +13,10 @@ import {
   ChevronUp,
   Shield,
   Clock,
-  Disc3,
 } from 'lucide-react';
 import { sounds } from '../../utils/sound';
 import { WindowsCalendarFlyout } from './WindowsCalendarFlyout';
+import { SpotifyIcon } from '../player/SpotifyIcon';
 
 const formatClockTime = (format = '12h') => {
   const now = new Date();
@@ -78,7 +78,7 @@ export const WindowsTaskbar = ({
     {
       id: 'player',
       name: 'Spotify',
-      icon: Disc3,
+      icon: SpotifyIcon,
     },
     {
       id: 'games',

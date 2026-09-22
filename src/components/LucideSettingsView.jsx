@@ -7,6 +7,7 @@ import { AccountSettingsTab } from './AccountSettingsTab';
 import { CreditsSettingsTab } from './CreditsSettingsTab';
 import { WallpapersSettingsTab } from './WallpapersSettingsTab';
 import { ChangelogView } from './ChangelogView';
+import { HatersSettingsTab } from './HatersSettingsTab';
 import { sounds } from '../utils/sound';
 import {
   Palette,
@@ -27,6 +28,7 @@ import {
   Image,
   User,
   Heart,
+  HeartCrack,
   Clock,
   Volume2,
   MousePointer,
@@ -309,6 +311,7 @@ export const LucideSettingsView = ({
               { id: 'stealth', label: 'Stealth & Cloak', icon: Shield },
               { id: 'gameplay', label: 'Controls', icon: Gamepad2 },
               { id: 'data', label: 'Data & Storage', icon: Database },
+              { id: 'haters', label: 'Haters', icon: HeartCrack },
               { id: 'changelog', label: 'Updates', icon: History },
               { id: 'credits', label: 'Credits', icon: Heart },
             ].map((tab) => {
@@ -1161,6 +1164,14 @@ export const LucideSettingsView = ({
               </button>
             </div>
           </div>
+        )}
+
+        {/* TAB: HATERS */}
+        {activeTab === 'haters' && (
+          <HatersSettingsTab
+            settings={settings}
+            onUpdateSettings={onUpdateSettings}
+          />
         )}
 
         {/* TAB: CHANGELOG */}

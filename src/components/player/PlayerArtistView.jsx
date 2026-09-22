@@ -11,6 +11,7 @@ import { useMusicPlayer } from '../../context/MusicPlayerContext';
 import { PlayerSongRow } from './PlayerSongRow';
 import { PlayerMediaCard } from './PlayerMediaCard';
 import { PlayerArtistCard } from './PlayerArtistCard';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerArtistView = ({
   artistName,
@@ -92,6 +93,7 @@ export const PlayerArtistView = ({
         <img
           src={artist.bannerUrl || artist.avatarUrl}
           alt={artist.name}
+          onError={(e) => handleImageError(e, artist.avatarUrl, artist.name, 'Artist')}
           className="w-full h-full object-cover opacity-60 filter brightness-90"
           referrerPolicy="no-referrer"
         />
@@ -204,22 +206,26 @@ export const PlayerArtistView = ({
             Albums
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {artist.albums.map((albumName, idx) => {
-              const albumTrack = artistSongs.find((t) => t.album === albumName) || artistSongs[idx % artistSongs.length];
-              const coverImg = albumTrack?.coverUrl || artist.avatarUrl;
+            {artist.albums.map((alb, idx) => {
+              const albumTitle = typeof alb === 'string' ? alb : alb.title || `Album ${idx + 1}`;
+              const albumYear = typeof alb === 'object' && alb.year ? ` • ${alb.year}` : '';
+              const albumCover = (typeof alb === 'object' && alb.coverUrl) || artist.avatarUrl;
+
+              const albumSongs = artistSongs.filter(
+                (t) => t.album && t.album.toLowerCase() === albumTitle.toLowerCase()
+              );
+
               return (
                 <PlayerMediaCard
-                  key={`album-${idx}`}
-                  title={albumName}
-                  subtitle="Album"
-                  imageUrl={coverImg}
+                  key={`album-${idx}-${albumTitle}`}
+                  title={albumTitle}
+                  subtitle={`Album${albumYear}`}
+                  imageUrl={albumCover}
                   onPlay={() => {
-                    const albumSongs = artistSongs.filter((t) => t.album === albumName);
                     if (albumSongs.length > 0) playTrack(albumSongs[0], albumSongs);
                     else if (artistSongs.length > 0) playTrack(artistSongs[0], artistSongs);
                   }}
                   onClick={() => {
-                    const albumSongs = artistSongs.filter((t) => t.album === albumName);
                     if (albumSongs.length > 0) playTrack(albumSongs[0], albumSongs);
                     else if (artistSongs.length > 0) playTrack(artistSongs[0], artistSongs);
                   }}
@@ -230,7 +236,110 @@ export const PlayerArtistView = ({
         </div>
       )}
 
-      {/* 5. Fans Also Like (Related Artists) */}
+      {/* 5. Singles & EPs Grid */}
+      {artist.singles && artist.singles.length > 0 && (
+        <div className="px-6 mb-8">
+          <h3 className="text-xl font-bold tracking-tight text-white mb-4">
+            Singles & EPs
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {artist.singles.map((sgl, idx) => {
+              const singleTitle = typeof sgl === 'string' ? sgl : sgl.title || `Single ${idx + 1}`;
+              const singleYear = typeof sgl === 'object' && sgl.year ? ` • ${sgl.year}` : '';
+              const singleCover = (typeof sgl === 'object' && sgl.coverUrl) || artist.avatarUrl;
+
+              const singleTrack = artistSongs.find(
+                (t) => t.title.toLowerCase() === singleTitle.toLowerCase()
+              );
+
+              return (
+                <PlayerMediaCard
+                  key={`single-${idx}-${singleTitle}`}
+                  title={singleTitle}
+                  subtitle={`Single${singleYear}`}
+                  imageUrl={singleCover}
+                  onPlay={() => {
+                    if (singleTrack) playTrack(singleTrack, artistSongs);
+                    else if (artistSongs.length > 0) playTrack(artistSongs[0], artistSongs);
+                  }}
+                  onClick={() => {
+                    if (singleTrack) playTrack(singleTrack, artistSongs);
+                    else if (artistSongs.length > 0) playTrack(artistSongs[0], artistSongs);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Featuring / Collaborations */}
+      {artist.collaborations && artist.collaborations.length > 0 && (
+        <div className="px-6 mb-8">
+          <h3 className="text-xl font-bold tracking-tight text-white mb-4">
+            Featured In & Collaborations
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {artist.collaborations.map((col, idx) => {
+              const colTitle = typeof col === 'string' ? col : col.title;
+              const colWith = typeof col === 'object' && col.withArtist ? `with ${col.withArtist}` : 'Collaboration';
+              const colCover = (typeof col === 'object' && col.coverUrl) || artist.avatarUrl;
+
+              const colTrack = artistSongs.find(
+                (t) => t.title.toLowerCase() === colTitle.toLowerCase()
+              );
+
+              return (
+                <PlayerMediaCard
+                  key={`collab-${idx}-${colTitle}`}
+                  title={colTitle}
+                  subtitle={colWith}
+                  imageUrl={colCover}
+                  onPlay={() => {
+                    if (colTrack) playTrack(colTrack, artistSongs);
+                    else if (artistSongs.length > 0) playTrack(artistSongs[0], artistSongs);
+                  }}
+                  onClick={() => {
+                    if (colTrack) playTrack(colTrack, artistSongs);
+                    else if (artistSongs.length > 0) playTrack(artistSongs[0], artistSongs);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 7. About / Biography Card */}
+      {artist.bio && (
+        <div className="px-6 mb-8">
+          <h3 className="text-xl font-bold tracking-tight text-white mb-4">
+            About
+          </h3>
+          <div className="relative rounded-2xl overflow-hidden bg-[#181818] border border-white/5 p-6 hover:bg-[#202020] transition-colors">
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              <img
+                src={artist.avatarUrl}
+                alt={artist.name}
+                onError={(e) => handleImageError(e, null, artist.name, 'Artist')}
+                className="w-24 h-24 sm:w-32 sm:h-32 rounded-full object-cover shadow-lg shrink-0"
+                referrerPolicy="no-referrer"
+              />
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-[#1db954]">{artist.genre}</span>
+                  <span className="text-xs text-[#b3b3b3]">• {artist.monthlyListeners} monthly listeners</span>
+                </div>
+                <p className="text-sm text-[#b3b3b3] leading-relaxed max-w-3xl">
+                  {artist.bio}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 8. Fans Also Like (Related Artists) */}
       <div className="px-6">
         <h3 className="text-xl font-bold tracking-tight text-white mb-4">
           Fans Also Like

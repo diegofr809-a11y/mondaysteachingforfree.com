@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Play, Pause, Heart, MoreHorizontal, Plus, Music } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerSongRow = ({
   track,
@@ -96,6 +97,7 @@ export const PlayerSongRow = ({
           <img
             src={track.coverUrl}
             alt={track.title}
+            onError={(e) => handleImageError(e, null, track.title, track.artist)}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
             loading="lazy"

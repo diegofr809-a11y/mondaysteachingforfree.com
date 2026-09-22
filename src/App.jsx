@@ -26,8 +26,9 @@ import { UniversalSearchModal } from './components/UniversalSearchModal';
 import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { PlayerApp } from './components/player/PlayerApp';
 import { PlayerMiniWidget } from './components/player/PlayerMiniWidget';
+import { SpotifyIcon } from './components/player/SpotifyIcon';
 import { MusicPlayerProvider } from './context/MusicPlayerContext';
-import { Gamepad2, Home, Heart, Settings, CheckCircle2, X, Disc3 } from 'lucide-react';
+import { Gamepad2, Home, Heart, Settings, CheckCircle2, X } from 'lucide-react';
 import { sounds } from './utils/sound';
 
 export default function App() {
@@ -547,7 +548,7 @@ function AppContent() {
         id="player"
         title="Spotify"
         subtitle="Music for everyone"
-        icon={Disc3}
+        icon={SpotifyIcon}
         isOpen={windows.player.isOpen}
         isMinimized={windows.player.isMinimized}
         isMaximized={windows.player.isMaximized}

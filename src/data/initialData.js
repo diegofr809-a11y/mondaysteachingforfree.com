@@ -92,6 +92,29 @@ export const DEFAULT_SETTINGS = {
   disableAnimations: false,
   confirmBeforeLeave: false,
   highPerformanceMode: false,
+  // Haters List
+  haters: [
+    {
+      id: 'luna',
+      name: 'Luna',
+      role: 'Certified Day 1 Hater',
+      bio: 'Never believed in the vision, but watches every single move from the sidelines.',
+      saltLevel: 99,
+      status: 'Active Doubter',
+      isDefault: true,
+    },
+    {
+      id: 'juana',
+      name: 'Juana',
+      role: 'Executive Critic',
+      bio: 'Professional side-eye specialist with unlimited unsolicited feedback and doubts.',
+      saltLevel: 96,
+      status: 'Constant Skeptic',
+      isDefault: true,
+    },
+  ],
+  haterShieldActive: true,
+  muteHaterVibes: true,
 };
 
 export const INITIAL_GAMES = gamesData;

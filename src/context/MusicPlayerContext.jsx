@@ -5,121 +5,19 @@ const MusicPlayerContext = createContext(null);
 
 const STORAGE_KEYS = {
   LIKED_SONGS: 'spotify_liked_song_ids_v2',
-  PLAYLISTS: 'spotify_user_playlists_v2',
+  PLAYLISTS: 'spotify_user_playlists_v3',
   RECENTLY_PLAYED: 'spotify_recently_played_v2',
   LAST_TRACK: 'spotify_last_played_track_v2',
 };
 
-// Web Audio synthesizer engine for 100% guaranteed, rock-solid audio playback
-// even when external iframe widgets are blocked, restricted, or rate-limited.
-class AudioSynthEngine {
-  constructor() {
-    this.ctx = null;
-    this.isPlaying = false;
-    this.timer = null;
-    this.gainNode = null;
-    this.currentTrack = null;
-  }
-
-  init() {
-    if (this.ctx) return;
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextClass) {
-        this.ctx = new AudioContextClass();
-        this.gainNode = this.ctx.createGain();
-        this.gainNode.gain.setValueAtTime(0.15, this.ctx.currentTime);
-        this.gainNode.connect(this.ctx.destination);
-      }
-    } catch (e) {
-      console.warn('AudioContext not available:', e);
-    }
-  }
-
-  setVolume(vol, isMuted = false) {
-    if (!this.gainNode || !this.ctx) return;
-    const v = isMuted ? 0 : Math.max(0, Math.min(1, vol)) * 0.15;
-    this.gainNode.gain.setValueAtTime(v, this.ctx.currentTime);
-  }
-
-  play(track, onProgress = null) {
-    this.init();
-    if (!this.ctx) return;
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
-    }
-
-    this.currentTrack = track;
-    this.isPlaying = true;
-    this.stopPattern();
-
-    // Chords and melody patterns based on track genre or title seed
-    const titleSum = (track?.title || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    const baseFreqs = [220, 246.94, 261.63, 293.66, 329.63, 349.23, 392, 440];
-    const rootFreq = baseFreqs[titleSum % baseFreqs.length];
-
-    let step = 0;
-    const notes = [
-      rootFreq,
-      rootFreq * 1.25,
-      rootFreq * 1.5,
-      rootFreq * 1.75,
-      rootFreq * 1.5,
-      rootFreq * 1.25,
-      rootFreq,
-      rootFreq * 0.75,
-    ];
-
-    const playNote = () => {
-      if (!this.isPlaying || !this.ctx) return;
-      try {
-        const osc = this.ctx.createOscillator();
-        const noteGain = this.ctx.createGain();
-        
-        // Soft acoustic tone (sine / triangle)
-        osc.type = step % 2 === 0 ? 'triangle' : 'sine';
-        const freq = notes[step % notes.length];
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-
-        noteGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
-        noteGain.gain.linearRampToValueAtTime(0.08, this.ctx.currentTime + 0.04);
-        noteGain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.45);
-
-        osc.connect(noteGain);
-        noteGain.connect(this.gainNode);
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.5);
-      } catch (e) {}
-
-      step++;
-    };
-
-    // Play note every 450ms for melodic musical feedback
-    playNote();
-    this.timer = setInterval(playNote, 450);
-  }
-
-  stopPattern() {
-    if (this.timer) {
-      clearInterval(this.timer);
-      this.timer = null;
-    }
-  }
-
-  pause() {
-    this.isPlaying = false;
-    this.stopPattern();
-  }
-
-  stop() {
-    this.isPlaying = false;
-    this.stopPattern();
-    this.currentTrack = null;
-  }
-}
-
-const synthEngine = new AudioSynthEngine();
+const REMOVED_PLAYLIST_IDS = new Set([
+  'playlist-mexican-pride',
+  'playlist-junior-h',
+  'playlist-corridos-belicos',
+  'playlist-tiktok-2026',
+  'playlist-today-top-hits',
+  'playlist-chill-late-night',
+]);
 
 export const MusicPlayerProvider = ({ children }) => {
   // Master tracks lookup map
@@ -141,10 +39,15 @@ export const MusicPlayerProvider = ({ children }) => {
   // User playlists state (persisted)
   const [playlists, setPlaylists] = useState(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEYS.PLAYLISTS);
-      if (stored) return JSON.parse(stored);
+      const stored = localStorage.getItem(STORAGE_KEYS.PLAYLISTS) || localStorage.getItem('spotify_user_playlists_v2');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p) => !REMOVED_PLAYLIST_IDS.has(p.id));
+        }
+      }
     } catch (e) {}
-    return DEFAULT_PLAYLISTS;
+    return DEFAULT_PLAYLISTS.filter((p) => !REMOVED_PLAYLIST_IDS.has(p.id));
   });
 
   // Recently played tracks list (persisted)
@@ -252,6 +155,30 @@ export const MusicPlayerProvider = ({ children }) => {
         const nextTime = prev + 0.5;
         const dur = durationRef.current || 210;
         if (nextTime >= dur) {
+          const currentTgt = currentTrackRef.current;
+          const expectedSec = parseDurationToSeconds(currentTgt?.duration);
+          if (dur <= 35 && expectedSec > 60 && currentTgt && !currentTgt._retriedFull) {
+            currentTgt._retriedFull = true;
+            resolveTrackUrl(currentTgt, true).then((fullUrl) => {
+              if (fullUrl && widgetRef.current) {
+                widgetRef.current.load(fullUrl, {
+                  auto_play: true,
+                  callback: () => {
+                    if (!widgetRef.current) return;
+                    const currentVol = isMutedRef.current ? 0 : Math.round(volumeRef.current * 100);
+                    widgetRef.current.setVolume(currentVol);
+                    widgetRef.current.play();
+                    widgetRef.current.getDuration((newMs) => {
+                      if (newMs > 0) setDuration(newMs / 1000);
+                    });
+                  },
+                });
+              } else {
+                handleTrackFinish();
+              }
+            });
+            return prev;
+          }
           handleTrackFinish();
           return 0;
         }
@@ -308,10 +235,11 @@ export const MusicPlayerProvider = ({ children }) => {
     if (rMode === 'one') {
       seek(0);
       if (widgetRef.current) {
-        widgetRef.current.seekTo(0);
-        widgetRef.current.play();
+        try {
+          widgetRef.current.seekTo(0);
+          widgetRef.current.play();
+        } catch (e) {}
       }
-      synthEngine.play(currentTrackRef.current);
     } else if (rMode === 'all') {
       nextTrack();
     } else {
@@ -346,17 +274,42 @@ export const MusicPlayerProvider = ({ children }) => {
           setIsPlaying(true);
           setIsLoading(false);
           setPlaybackError(null);
-          synthEngine.pause(); // Let SoundCloud carry the audio
+          startTicker();
         });
 
         widget.bind(window.SC.Widget.Events.PAUSE, () => {
           if (!isMounted) return;
           setIsPlaying(false);
-          synthEngine.pause();
         });
 
         widget.bind(window.SC.Widget.Events.FINISH, () => {
           if (!isMounted) return;
+          const currentT = currentTimeRef.current;
+          const currentTgt = currentTrackRef.current;
+          const expectedSec = parseDurationToSeconds(currentTgt?.duration);
+          // If track ended around 30s but catalog length is full song, auto-retry with full-length stream
+          if (currentT <= 35 && expectedSec > 60 && currentTgt && !currentTgt._retriedFull) {
+            currentTgt._retriedFull = true;
+            resolveTrackUrl(currentTgt, true).then((fullUrl) => {
+              if (fullUrl && widgetRef.current) {
+                widgetRef.current.load(fullUrl, {
+                  auto_play: true,
+                  callback: () => {
+                    if (!widgetRef.current) return;
+                    const currentVol = isMutedRef.current ? 0 : Math.round(volumeRef.current * 100);
+                    widgetRef.current.setVolume(currentVol);
+                    widgetRef.current.play();
+                    widgetRef.current.getDuration((newMs) => {
+                      if (newMs > 0) setDuration(newMs / 1000);
+                    });
+                  },
+                });
+                return;
+              }
+              handleTrackFinish();
+            });
+            return;
+          }
           handleTrackFinish();
         });
 
@@ -370,10 +323,8 @@ export const MusicPlayerProvider = ({ children }) => {
         widget.bind(window.SC.Widget.Events.ERROR, () => {
           if (!isMounted) return;
           setIsLoading(false);
-          // Fall back gracefully to audio synth
-          if (isPlayingRef.current) {
-            synthEngine.play(currentTrackRef.current);
-          }
+          setIsPlaying(false);
+          setPlaybackError('Track playback restricted or unavailable');
         });
 
         return true;
@@ -396,12 +347,12 @@ export const MusicPlayerProvider = ({ children }) => {
   }, []);
 
   // Resolve track SoundCloud URL
-  const resolveTrackUrl = async (track) => {
-    if (track.soundCloudUrl) return track.soundCloudUrl;
+  const resolveTrackUrl = async (track, forceFull = false) => {
+    if (track.soundCloudUrl && !forceFull) return track.soundCloudUrl;
 
     try {
       const query = `${track.artist} ${track.title}`;
-      const res = await fetch(`/api/soundcloud/resolve?q=${encodeURIComponent(query)}`);
+      const res = await fetch(`/api/soundcloud/resolve?q=${encodeURIComponent(query)}${forceFull ? '&forceFull=true' : ''}`);
       if (res.ok) {
         const data = await res.json();
         if (data.trackUrl) {
@@ -417,7 +368,7 @@ export const MusicPlayerProvider = ({ children }) => {
     return null;
   };
 
-  // Play a specific track - guaranteed immediate, deterministic response
+  // Play a specific track - real audio from SoundCloud, no synth buzzing
   const playTrack = async (track, newQueue = null) => {
     if (!track) return;
 
@@ -434,12 +385,12 @@ export const MusicPlayerProvider = ({ children }) => {
       setQueueIndex(idx >= 0 ? idx : 0);
     }
 
-    // 2. Set active track state immediately
+    // 2. Set active track state
     setCurrentTrack(track);
     setDuration(parseDurationToSeconds(track.duration));
     setCurrentTime(0);
-    setIsPlaying(true);
-    setIsLoading(false);
+    setIsPlaying(false);
+    setIsLoading(true);
     setPlaybackError(null);
 
     // 3. Add to recently played
@@ -448,12 +399,7 @@ export const MusicPlayerProvider = ({ children }) => {
       return [track, ...filtered].slice(0, 30);
     });
 
-    // 4. Start ticker and audio synthesizer immediately
-    startTicker();
-    synthEngine.setVolume(volumeRef.current, isMutedRef.current);
-    synthEngine.play(track);
-
-    // 5. Try SoundCloud stream in background
+    // 4. Resolve and play SoundCloud stream
     try {
       const scUrl = await resolveTrackUrl(track);
       if (scUrl && widgetRef.current) {
@@ -466,7 +412,31 @@ export const MusicPlayerProvider = ({ children }) => {
             widgetRef.current.play();
 
             widgetRef.current.getDuration((ms) => {
-              if (ms > 0) setDuration(ms / 1000);
+              if (ms > 0) {
+                const durSec = ms / 1000;
+                const expectedSec = parseDurationToSeconds(track.duration);
+                // Detect 30-second preview limit on stream
+                if (durSec <= 35 && expectedSec > 60 && !track._retriedFull) {
+                  track._retriedFull = true;
+                  resolveTrackUrl(track, true).then((fullUrl) => {
+                    if (fullUrl && fullUrl !== scUrl && widgetRef.current) {
+                      widgetRef.current.load(fullUrl, {
+                        auto_play: true,
+                        callback: () => {
+                          if (!widgetRef.current) return;
+                          widgetRef.current.setVolume(currentVol);
+                          widgetRef.current.play();
+                          widgetRef.current.getDuration((newMs) => {
+                            if (newMs > 0) setDuration(newMs / 1000);
+                          });
+                        },
+                      });
+                    }
+                  });
+                  return;
+                }
+                setDuration(durSec);
+              }
             });
 
             widgetRef.current.getCurrentSound((sound) => {
@@ -477,18 +447,23 @@ export const MusicPlayerProvider = ({ children }) => {
             });
           },
         });
+      } else {
+        setIsLoading(false);
+        setIsPlaying(false);
+        setPlaybackError('Track unavailable on SoundCloud');
       }
     } catch (err) {
-      // Audio synth already playing smoothly
+      setIsLoading(false);
+      setIsPlaying(false);
+      setPlaybackError('Track unavailable on SoundCloud');
     }
   };
 
-  // Immediate, infallible pause action
+  // Immediate pause action
   const pausePlayback = () => {
     setIsPlaying(false);
     setIsLoading(false);
     stopTicker();
-    synthEngine.pause();
     if (widgetRef.current) {
       try {
         widgetRef.current.pause();
@@ -496,7 +471,7 @@ export const MusicPlayerProvider = ({ children }) => {
     }
   };
 
-  // Immediate, infallible resume action
+  // Resume action
   const resumePlayback = () => {
     if (!currentTrack && queue.length > 0) {
       playTrack(queue[0]);
@@ -506,8 +481,6 @@ export const MusicPlayerProvider = ({ children }) => {
     setIsLoading(false);
     setPlaybackError(null);
     startTicker();
-    synthEngine.setVolume(volumeRef.current, isMutedRef.current);
-    synthEngine.play(currentTrack);
 
     if (widgetRef.current) {
       try {
@@ -516,7 +489,7 @@ export const MusicPlayerProvider = ({ children }) => {
     }
   };
 
-  // Toggle Play / Pause - guaranteed instantaneous toggle
+  // Toggle Play / Pause
   const togglePlay = () => {
     if (isPlaying) {
       pausePlayback();
@@ -544,7 +517,6 @@ export const MusicPlayerProvider = ({ children }) => {
     if (isMuted && clamped > 0) {
       setIsMutedState(false);
     }
-    synthEngine.setVolume(clamped, false);
     if (widgetRef.current) {
       try {
         widgetRef.current.setVolume(Math.round(clamped * 100));
@@ -556,7 +528,6 @@ export const MusicPlayerProvider = ({ children }) => {
   const toggleMute = () => {
     const nextMute = !isMuted;
     setIsMutedState(nextMute);
-    synthEngine.setVolume(volume, nextMute);
     if (widgetRef.current) {
       try {
         widgetRef.current.setVolume(nextMute ? 0 : Math.round(volume * 100));
@@ -566,7 +537,6 @@ export const MusicPlayerProvider = ({ children }) => {
 
   const setIsMuted = (muted) => {
     setIsMutedState(muted);
-    synthEngine.setVolume(volume, muted);
     if (widgetRef.current) {
       try {
         widgetRef.current.setVolume(muted ? 0 : Math.round(volume * 100));
@@ -739,13 +709,13 @@ export const MusicPlayerProvider = ({ children }) => {
         allow="autoplay; encrypted-media"
         style={{
           position: 'fixed',
-          bottom: -9999,
-          left: -9999,
-          width: 300,
-          height: 160,
-          opacity: 0.001,
+          bottom: 0,
+          right: 0,
+          width: 1,
+          height: 1,
+          opacity: 0.01,
           pointerEvents: 'none',
-          zIndex: -99,
+          zIndex: -1,
         }}
         title="SoundCloud Audio Engine"
       />

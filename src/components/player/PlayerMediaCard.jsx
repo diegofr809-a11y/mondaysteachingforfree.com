@@ -1,5 +1,6 @@
 import React from 'react';
 import { Play, Pause } from 'lucide-react';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerMediaCard = ({
   title,
@@ -29,6 +30,7 @@ export const PlayerMediaCard = ({
         <img
           src={imageUrl}
           alt={title}
+          onError={(e) => handleImageError(e, null, title, subtitle || 'Spotify')}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           referrerPolicy="no-referrer"
           loading="lazy"

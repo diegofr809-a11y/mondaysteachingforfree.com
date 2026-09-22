@@ -40,6 +40,8 @@ export const UniversalSearchModal = ({
       { id: 'set-gameplay', title: 'Controls', category: 'Settings', tab: 'gameplay' },
       { id: 'set-account', title: 'Profile', category: 'Settings', tab: 'account' },
       { id: 'set-data', title: 'Storage & Backup', category: 'Settings', tab: 'data' },
+      { id: 'set-haters', title: 'Haters (Luna & Juana)', category: 'Settings', tab: 'haters' },
+      { id: 'set-credits', title: 'Credits', category: 'Settings', tab: 'credits' },
     ],
     []
   );

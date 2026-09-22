@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
 import { PlayerSongRow } from './PlayerSongRow';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerNowPlayingModal = ({ isOpen, onClose, onSelectArtist }) => {
   const {
@@ -163,6 +164,7 @@ export const PlayerNowPlayingModal = ({ isOpen, onClose, onSelectArtist }) => {
             <img
               src={currentTrack.coverUrl}
               alt={currentTrack.title}
+              onError={(e) => handleImageError(e, null, currentTrack.title, currentTrack.artist)}
               className={`w-full h-full object-cover transition-transform duration-700 ${
                 isPlaying ? 'scale-105' : 'scale-100'
               }`}

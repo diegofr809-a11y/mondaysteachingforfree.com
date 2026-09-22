@@ -4,6 +4,7 @@ import { useMusicPlayer } from '../../context/MusicPlayerContext';
 import { PlayerSongRow } from './PlayerSongRow';
 import { PlayerArtistCard } from './PlayerArtistCard';
 import { PlayerMediaCard } from './PlayerMediaCard';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerSearchView = ({ onSelectArtist, onSelectPlaylist }) => {
   const { tracks, artists, playTrack, togglePlay, currentTrack, isPlaying } = useMusicPlayer();
@@ -146,6 +147,7 @@ export const PlayerSearchView = ({ onSelectArtist, onSelectPlaylist }) => {
                             <img
                               src={filteredResults.topMatch.data.avatarUrl}
                               alt={filteredResults.topMatch.data.name}
+                              onError={(e) => handleImageError(e, null, filteredResults.topMatch.data.name, 'Artist')}
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
                             />
@@ -174,6 +176,7 @@ export const PlayerSearchView = ({ onSelectArtist, onSelectPlaylist }) => {
                             <img
                               src={filteredResults.topMatch.data.coverUrl}
                               alt={filteredResults.topMatch.data.title}
+                              onError={(e) => handleImageError(e, null, filteredResults.topMatch.data.title, filteredResults.topMatch.data.artist)}
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
                             />

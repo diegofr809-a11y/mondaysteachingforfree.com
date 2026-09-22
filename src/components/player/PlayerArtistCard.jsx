@@ -1,6 +1,7 @@
 import React from 'react';
 import { Play, Pause } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerArtistCard = ({ artist, onSelectArtist }) => {
   const { playTrack, togglePlay, currentTrack, isPlaying } = useMusicPlayer();
@@ -29,6 +30,7 @@ export const PlayerArtistCard = ({ artist, onSelectArtist }) => {
         <img
           src={artist.avatarUrl}
           alt={artist.name}
+          onError={(e) => handleImageError(e, null, artist.name, 'Artist')}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           referrerPolicy="no-referrer"
           loading="lazy"

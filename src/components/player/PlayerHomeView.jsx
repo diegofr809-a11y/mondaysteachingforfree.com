@@ -3,6 +3,7 @@ import { Play, Pause, Heart, Sparkles } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
 import { PlayerMediaCard } from './PlayerMediaCard';
 import { PlayerArtistCard } from './PlayerArtistCard';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerHomeView = ({
   onSelectArtist,
@@ -124,6 +125,7 @@ export const PlayerHomeView = ({
                     <img
                       src={card.imageUrl}
                       alt={card.title}
+                      onError={(e) => handleImageError(e, null, card.title, 'Spotify')}
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
@@ -198,10 +200,12 @@ export const PlayerHomeView = ({
             </p>
           </div>
           <button
-            onClick={() => onSelectPlaylist('playlist-mexican-pride')}
-            className="text-xs font-bold text-[#b3b3b3] hover:underline"
+            onClick={() => {
+              if (mexicanTracks.length > 0) handleTrackCardPlay(mexicanTracks[0], mexicanTracks);
+            }}
+            className="text-xs font-bold text-[#b3b3b3] hover:underline cursor-pointer"
           >
-            Show all
+            Play all
           </button>
         </div>
 
@@ -235,10 +239,12 @@ export const PlayerHomeView = ({
             </p>
           </div>
           <button
-            onClick={() => onSelectPlaylist('playlist-today-top-hits')}
-            className="text-xs font-bold text-[#b3b3b3] hover:underline"
+            onClick={() => {
+              if (popularTracks.length > 0) handleTrackCardPlay(popularTracks[0], popularTracks);
+            }}
+            className="text-xs font-bold text-[#b3b3b3] hover:underline cursor-pointer"
           >
-            Show all
+            Play all
           </button>
         </div>
 
@@ -260,27 +266,29 @@ export const PlayerHomeView = ({
         </div>
       </section>
 
-      {/* 5. Featured Playlists */}
-      <section className="pb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold tracking-tight text-white">
-            Featured Playlists
-          </h3>
-        </div>
+      {/* 5. Custom Playlists (if created) */}
+      {playlists.length > 0 && (
+        <section className="pb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold tracking-tight text-white">
+              Playlists
+            </h3>
+          </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {playlists.slice(0, 6).map((pl) => (
-            <PlayerMediaCard
-              key={pl.id}
-              title={pl.name}
-              subtitle={pl.description || 'Playlist'}
-              imageUrl={pl.coverUrl}
-              onPlay={() => onSelectPlaylist(pl.id)}
-              onClick={() => onSelectPlaylist(pl.id)}
-            />
-          ))}
-        </div>
-      </section>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            {playlists.slice(0, 6).map((pl) => (
+              <PlayerMediaCard
+                key={pl.id}
+                title={pl.name}
+                subtitle={pl.description || 'Playlist'}
+                imageUrl={pl.coverUrl}
+                onPlay={() => onSelectPlaylist(pl.id)}
+                onClick={() => onSelectPlaylist(pl.id)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 };

@@ -65,75 +65,218 @@ async function startServer() {
         return res.json({ trackUrl: trackUrlParam });
       }
 
-      // 2. Check query cache
+      // 2. Check query cache (ensure cached item is NOT a 30s snipped preview)
       const cacheKey = query.toLowerCase();
-      if (scCache.has(cacheKey)) {
-        return res.json(scCache.get(cacheKey));
+      const forceFull = req.query.forceFull === 'true';
+      if (!forceFull && scCache.has(cacheKey)) {
+        const cached = scCache.get(cacheKey);
+        if (cached && !cached.isSnipped && (!cached.duration || cached.duration > 35000)) {
+          return res.json(cached);
+        }
       }
+
+      // Helper to fetch track hydration metadata and detect 30-second Go+ snipped previews
+      const fetchTrackDetails = async (slug) => {
+        try {
+          const res = await fetch(`https://soundcloud.com/${slug}`, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+              Accept: 'text/html,application/xhtml+xml',
+            },
+          });
+          if (!res.ok) return null;
+          const trHtml = await res.text();
+          const match = trHtml.match(/<script>window\.__sc_hydration\s*=\s*(\[[\s\S]*?\]);<\/script>/);
+          if (match) {
+            const hyd = JSON.parse(match[1]);
+            const soundObj = hyd.find((item) => item.hydratable === 'sound');
+            if (soundObj && soundObj.data) {
+              const d = soundObj.data;
+              const isSnipped =
+                d.policy === 'SNIP' ||
+                (d.duration <= 35000 && d.full_duration > 45000) ||
+                (d.media?.transcodings || []).some((t) => t.snipped);
+              return {
+                slug,
+                trackUrl: `https://soundcloud.com/${slug}`,
+                title: d.title,
+                author: d.user?.username || '',
+                artworkUrl: d.artwork_url ? d.artwork_url.replace('-large', '-t500x500') : null,
+                duration: d.duration,
+                fullDuration: d.full_duration,
+                isSnipped: Boolean(isSnipped),
+              };
+            }
+          }
+        } catch (e) {}
+        return null;
+      };
+
+      // Helper to query soundcloud and extract track slugs
+      const querySoundCloudSlugs = async (searchQuery) => {
+        try {
+          const searchUrl = `https://soundcloud.com/search/sounds?q=${encodeURIComponent(searchQuery)}`;
+          const response = await fetch(searchUrl, {
+            headers: {
+              'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+              Accept: 'text/html,application/xhtml+xml',
+            },
+          });
+          if (!response.ok) return [];
+          const html = await response.text();
+          return [...html.matchAll(/href="\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)"/g)]
+            .map((m) => m[1])
+            .filter((p) => {
+              const parts = p.split('/');
+              return parts.length === 2 && !systemPaths.has(parts[0]) && !ignoreSegments.has(parts[1]);
+            });
+        } catch (e) {
+          return [];
+        }
+      };
 
       // 3. Search SoundCloud sounds
-      const searchUrl = `https://soundcloud.com/search/sounds?q=${encodeURIComponent(query)}`;
-      const response = await fetch(searchUrl, {
-        headers: {
-          'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-          Accept: 'text/html,application/xhtml+xml',
-        },
-      });
+      let rawMatches = await querySoundCloudSlugs(query);
 
-      if (!response.ok) {
-        return res.status(502).json({ error: 'Failed to query SoundCloud' });
+      // Query tokenization and scoring
+      const cleanNorm = (str) =>
+        (str || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]/g, ' ')
+          .trim();
+
+      const queryWords = cleanNorm(query)
+        .split(/\s+/)
+        .filter((w) => w.length > 1);
+
+      const penaltyWords = ['remix', 'cover', 'slowed', 'reverb', 'speed', 'instrumental', '8d', 'nightcore', 'tribute', 'karaoke', 'reaction', 'typebeat', 'beat'];
+
+      const scoreCandidates = (slugs) => {
+        return slugs.map((slug) => {
+          const [authorSlug, trackSlug] = slug.split('/');
+          const authorClean = cleanNorm(authorSlug.replace(/-/g, ' '));
+          const trackClean = cleanNorm(trackSlug.replace(/-/g, ' '));
+          const authorTokens = authorClean.split(/\s+/);
+          const trackTokens = trackClean.split(/\s+/);
+
+          let score = 0;
+          let matchedTokens = 0;
+
+          for (const w of queryWords) {
+            if (trackTokens.includes(w)) {
+              score += 5;
+              matchedTokens++;
+            } else if (trackClean.includes(w)) {
+              score += 2.5;
+              matchedTokens++;
+            }
+
+            if (authorTokens.includes(w)) {
+              score += 4;
+              matchedTokens++;
+            } else if (authorClean.includes(w)) {
+              score += 2;
+              matchedTokens++;
+            }
+          }
+
+          // Check for unwanted modifiers
+          for (const pw of penaltyWords) {
+            if (!query.toLowerCase().includes(pw)) {
+              if (trackTokens.includes(pw) || trackClean.includes(pw)) score -= 12;
+              if (authorTokens.includes(pw) || authorClean.includes(pw)) score -= 6;
+            }
+          }
+
+          return { slug, score, matchedTokens };
+        });
+      };
+
+      let scoredMatches = scoreCandidates(rawMatches);
+      scoredMatches.sort((a, b) => b.score - a.score);
+
+      // 4. Verify candidate track details (filter out 30-second Go+ snipped previews)
+      const topSlugs = [...new Set(scoredMatches.map((m) => m.slug))].slice(0, 6);
+      let candidateDetails = await Promise.all(topSlugs.map((s) => fetchTrackDetails(s)));
+      let validCandidates = candidateDetails.filter(Boolean);
+
+      // Check if we have any full-length candidate (not snipped and >40 seconds)
+      let nonSnipped = validCandidates.filter((c) => !c.isSnipped && c.duration > 40000);
+
+      // If all initial results are 30s snippets, attempt fallback search for audio upload
+      if (!nonSnipped.length) {
+        const fallbackQueries = [`${query} audio`, `${query} full`];
+        for (const fbq of fallbackQueries) {
+          const fbSlugs = await querySoundCloudSlugs(fbq);
+          const fbScored = scoreCandidates(fbSlugs);
+          fbScored.sort((a, b) => b.score - a.score);
+          const fbTop = [...new Set(fbScored.map((m) => m.slug))].slice(0, 5);
+          const fbDetails = await Promise.all(fbTop.map((s) => fetchTrackDetails(s)));
+          const fbFull = fbDetails.filter((c) => c && !c.isSnipped && c.duration > 40000);
+          if (fbFull.length) {
+            nonSnipped = fbFull;
+            break;
+          }
+        }
       }
 
-      const html = await response.text();
-      const systemPaths = new Set([
-        'search',
-        'popular',
-        'pages',
-        'terms',
-        'settings',
-        'signin',
-        'upload',
-        'mobile',
-        'you',
-        'charts',
-        'stream',
-        'discover',
-        'notifications',
-        'messages',
-        'stations',
-        'imprint',
-      ]);
-
-      const matches = [...html.matchAll(/href="\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)"/g)]
-        .map((m) => m[1])
-        .filter((p) => !systemPaths.has(p.split('/')[0]));
-
-      if (!matches.length) {
+      let bestMatch;
+      if (nonSnipped.length > 0) {
+        // Score non-snipped candidates and select top
+        const scoredFull = nonSnipped.map((c) => {
+          const matchMeta = scoredMatches.find((m) => m.slug === c.slug);
+          return {
+            ...c,
+            score: matchMeta ? matchMeta.score : 5,
+          };
+        });
+        scoredFull.sort((a, b) => b.score - a.score);
+        bestMatch = scoredFull[0];
+      } else if (validCandidates.length > 0) {
+        bestMatch = validCandidates[0];
+      } else if (scoredMatches.length > 0) {
+        bestMatch = {
+          slug: scoredMatches[0].slug,
+          trackUrl: `https://soundcloud.com/${scoredMatches[0].slug}`,
+          title: query,
+          author: '',
+          artworkUrl: null,
+          isSnipped: false,
+        };
+      } else {
         return res.status(404).json({ error: 'No matching SoundCloud track found' });
       }
 
-      const trackSlug = matches[0];
-      const trackUrl = `https://soundcloud.com/${trackSlug}`;
+      let trackInfo = {
+        trackUrl: bestMatch.trackUrl,
+        title: bestMatch.title || query,
+        author: bestMatch.author || '',
+        artworkUrl: bestMatch.artworkUrl || null,
+        duration: bestMatch.duration || null,
+        fullDuration: bestMatch.fullDuration || null,
+        isSnipped: bestMatch.isSnipped || false,
+      };
 
-      let trackInfo = { trackUrl, title: query, author: '', artworkUrl: null };
-      try {
-        const oembedRes = await fetch(
-          `https://soundcloud.com/oembed?url=${encodeURIComponent(trackUrl)}&format=json`
-        );
-        if (oembedRes.ok) {
-          const odata = await oembedRes.json();
-          trackInfo = {
-            trackUrl,
-            title: odata.title,
-            author: odata.author_name,
-            artworkUrl: odata.thumbnail_url
-              ? odata.thumbnail_url.replace('-large', '-t500x500')
-              : null,
-            html: odata.html,
-          };
-        }
-      } catch (e) {}
+      // Fallback to oembed if title/author are still missing
+      if (!trackInfo.author) {
+        try {
+          const oembedRes = await fetch(
+            `https://soundcloud.com/oembed?url=${encodeURIComponent(trackInfo.trackUrl)}&format=json`
+          );
+          if (oembedRes.ok) {
+            const odata = await oembedRes.json();
+            trackInfo.title = trackInfo.title || odata.title;
+            trackInfo.author = trackInfo.author || odata.author_name;
+            if (!trackInfo.artworkUrl && odata.thumbnail_url) {
+              trackInfo.artworkUrl = odata.thumbnail_url.replace('-large', '-t500x500');
+            }
+          }
+        } catch (e) {}
+      }
 
       scCache.set(cacheKey, trackInfo);
       return res.json(trackInfo);

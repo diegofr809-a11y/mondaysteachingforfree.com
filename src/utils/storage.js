@@ -262,6 +262,10 @@ export const getStoredSettings = () => {
     return {
       ...DEFAULT_SETTINGS,
       ...parsed,
+      haters:
+        Array.isArray(parsed.haters) && parsed.haters.length > 0
+          ? parsed.haters
+          : DEFAULT_SETTINGS.haters,
       aiCustomApiKey: sanitizedKey,
     };
   } catch (err) {

@@ -15,6 +15,7 @@ import {
   ListMusic,
 } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerBottomBar = ({ onToggleQueue, isQueueOpen, onOpenArtist }) => {
   const {
@@ -84,6 +85,7 @@ export const PlayerBottomBar = ({ onToggleQueue, isQueueOpen, onOpenArtist }) =>
           <img
             src={currentTrack.coverUrl}
             alt={currentTrack.title}
+            onError={(e) => handleImageError(e, null, currentTrack.title, currentTrack.artist)}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />

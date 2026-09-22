@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useMusicPlayer } from '../../context/MusicPlayerContext';
 import { PlayerSongRow } from './PlayerSongRow';
+import { handleImageError } from '../../utils/imageFallback';
 
 export const PlayerPlaylistView = ({
   playlistId,
@@ -125,6 +126,7 @@ export const PlayerPlaylistView = ({
           <img
             src={playlist.coverUrl}
             alt={playlist.name}
+            onError={(e) => handleImageError(e, null, playlist.name, 'Playlist')}
             className="w-full h-full object-cover"
             referrerPolicy="no-referrer"
           />
@@ -287,6 +289,7 @@ export const PlayerPlaylistView = ({
                     <img
                       src={cand.coverUrl}
                       alt={cand.title}
+                      onError={(e) => handleImageError(e, null, cand.title, cand.artist)}
                       className="w-8 h-8 rounded object-cover"
                       referrerPolicy="no-referrer"
                     />

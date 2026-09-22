@@ -14,10 +14,10 @@ import {
   ChevronRight,
   Clock,
   Sparkles,
-  Disc3,
 } from 'lucide-react';
 import { sounds } from '../../utils/sound';
 import { triggerPanic } from '../../utils/cloak';
+import { SpotifyIcon } from '../player/SpotifyIcon';
 
 export const WindowsStartMenu = ({
   isOpen,
@@ -83,7 +83,7 @@ export const WindowsStartMenu = ({
       id: 'player',
       name: 'Spotify',
       desc: 'Music for everyone',
-      icon: Disc3,
+      icon: SpotifyIcon,
       action: () => onOpenWindow('player'),
     },
     {
