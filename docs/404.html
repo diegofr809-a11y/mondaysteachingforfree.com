@@ -4,15 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>grrmondays</title>
-    <meta name="description" content="grrmondays gaming hub with over 1,900 unblocked games, proxy streaming, stealth tab cloaking, custom themes, and wallpapers." />
+    <meta name="description" content="grrmondays - Ultimate unblocked gaming portal and modern Windows desktop web OS featuring 2,400+ games, music player, and customizable themes." />
     <meta property="og:title" content="grrmondays" />
-    <meta property="og:description" content="grrmondays gaming hub with over 1,900 unblocked games, proxy streaming, stealth tab cloaking, custom themes, and wallpapers." />
+    <meta property="og:description" content="grrmondays - Ultimate unblocked gaming portal and modern Windows desktop web OS featuring 2,400+ games, music player, and customizable themes." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%2310b981%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22><polygon points=%226 3 20 12 6 21 6 3%22/></svg>" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- SoundCloud Official HTML5 Widget API -->
+    <script src="https://w.soundcloud.com/player/api.js"></script>
     <script type="module" crossorigin src="./assets/index.js"></script>
     <link rel="stylesheet" crossorigin href="./assets/index.css">
   </head>
@@ -25,14 +27,15 @@
         if (entry) {
           entry.remove();
         }
+        var timestamp = Date.now();
         var s = document.createElement('script');
         s.type = 'module';
         s.crossOrigin = 'anonymous';
-        s.src = './assets/index.js';
+        s.src = './assets/index.js?v=' + timestamp;
         document.head.appendChild(s);
         var l = document.createElement('link');
         l.rel = 'stylesheet';
-        l.href = './assets/index.css';
+        l.href = './assets/index.css?v=' + timestamp;
         document.head.appendChild(l);
       }
     </script>

@@ -46,15 +46,15 @@ function AppContent() {
   const [notifications, setNotifications] = useState(getStoredNotifications);
   const [userProfile, setUserProfile] = useState(getStoredUserProfile);
 
-  // Windows 11 Window Manager State
+  // Windows 11 Window Manager State (Desktop starts clean with taskbar and shortcuts ready)
   const [windows, setWindows] = useState({
-    player: { isOpen: true, isMinimized: false, isMaximized: false },
+    player: { isOpen: false, isMinimized: false, isMaximized: false },
     games: { isOpen: false, isMinimized: false, isMaximized: false },
     home: { isOpen: false, isMinimized: false, isMaximized: false },
     favorites: { isOpen: false, isMinimized: false, isMaximized: false },
     settings: { isOpen: false, isMinimized: false, isMaximized: false },
   });
-  const [activeWindowId, setActiveWindowId] = useState('player');
+  const [activeWindowId, setActiveWindowId] = useState(null);
   const [windowZIndices, setWindowZIndices] = useState({
     player: 25,
     games: 20,
