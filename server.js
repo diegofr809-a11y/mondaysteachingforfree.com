@@ -515,25 +515,18 @@ async function startServer() {
         parts: [{ text: promptText }],
       });
 
-      // Select target model based on user request / task complexity
-      // Complex tasks: gemini-3.1-pro-preview
-      // Fast tasks: gemini-3.1-flash-lite
-      // General tasks: gemini-3.5-flash
-      let primaryModel = 'gemini-3.5-flash';
-      if (taskType === 'complex' || model === 'gemini-3.1-pro-preview') {
-        primaryModel = 'gemini-3.1-pro-preview';
-      } else if (taskType === 'fast' || model === 'gemini-3.1-flash-lite') {
-        primaryModel = 'gemini-3.1-flash-lite';
-      } else if (model && ['gemini-3.5-flash', 'gemini-3.8-flash'].includes(model)) {
-        primaryModel = model;
-      }
-
-      // Ordered candidates with graceful resilience
+      // Ordered model candidates with robust fallback
       const candidateModels = [
-        primaryModel,
-        primaryModel !== 'gemini-3.5-flash' ? 'gemini-3.5-flash' : 'gemini-3.1-flash-lite',
+        'gemini-2.5-flash',
         'gemini-3.8-flash',
+        'gemini-flash-latest',
+        'gemini-2.5-flash-lite',
       ];
+
+      // If user specifically requested a model, put it at front
+      if (model && !candidateModels.includes(model)) {
+        candidateModels.unshift(model);
+      }
 
       let lastGeminiError = null;
 
@@ -553,24 +546,12 @@ async function startServer() {
             reply,
             provider: 'gemini',
             model: modelName,
-            taskType: taskType || (modelName === 'gemini-3.1-pro-preview' ? 'complex' : modelName === 'gemini-3.1-flash-lite' ? 'fast' : 'general'),
+            taskType: taskType || 'general',
           });
         } catch (err) {
           lastGeminiError = err;
-          const isRetryable =
-            err?.status === 503 ||
-            err?.message?.includes('503') ||
-            err?.message?.includes('high demand') ||
-            err?.message?.includes('UNAVAILABLE') ||
-            err?.status === 429 ||
-            err?.message?.includes('429') ||
-            err?.message?.includes('not found') ||
-            err?.status === 404;
-
-          if (isRetryable) {
-            continue;
-          }
-          break;
+          console.warn(`Model ${modelName} failed, trying next candidate:`, err?.message || err);
+          continue;
         }
       }
 

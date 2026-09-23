@@ -168,33 +168,48 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
     try {
       // Format history for Gemini SDK format
       const formattedHistory = newHistory
-        .filter((m) => m.id !== 'msg-welcome' && m.id !== userMessage.id)
+        .filter((m) => m.id !== 'msg-welcome' && m.id !== userMessage.id && !m.isError)
         .map((m) => ({
           role: m.role === 'user' ? 'user' : 'model',
           text: m.text,
         }));
 
-      // Determine model based on selectedTaskType
-      let targetModel = 'gemini-3.5-flash';
-      if (selectedTaskType === 'complex') targetModel = 'gemini-3.1-pro-preview';
-      if (selectedTaskType === 'fast') targetModel = 'gemini-3.1-flash-lite';
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           message: query,
           history: formattedHistory,
           systemInstruction: activeSystemInstruction,
           taskType: selectedTaskType,
-          model: targetModel,
+          model: selectedRole.model || 'gemini-2.5-flash',
         }),
       });
 
-      const data = await res.json();
+      clearTimeout(timeoutId);
+
+      const contentType = res.headers.get('content-type') || '';
+      let data;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const textResponse = await res.text();
+        if (!res.ok) {
+          throw new Error(
+            res.status === 504 || res.status === 502
+              ? 'Request timed out or gateway is busy. Please try again.'
+              : `Server returned status ${res.status}: ${textResponse.slice(0, 100)}`
+          );
+        }
+        data = { reply: textResponse };
+      }
 
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to get a response from Gemini.');
+        throw new Error(data.error || `Error ${res.status}: Failed to get a response from Gemini.`);
       }
 
       const botMessage = {
@@ -202,7 +217,7 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
         role: 'model',
         text: data.reply || 'No response returned.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        model: data.model || targetModel,
+        model: data.model || 'gemini-2.5-flash',
         roleName: selectedRole.name,
       };
 
@@ -211,11 +226,15 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
         sounds?.playNotification?.(soundEffectsEnabled);
       } catch {}
     } catch (err) {
+      const isAbort = err?.name === 'AbortError';
       const errorMessage = {
         id: `err-${Date.now()}`,
         role: 'model',
         isError: true,
-        text: `⚠️ **Error:** ${err.message || 'Unable to connect to Gemini API. Please try again.'}`,
+        failedPrompt: query,
+        text: isAbort
+          ? '⏳ **Request Timed Out:** The AI model is taking longer than expected. Please try asking again.'
+          : `⚠️ **Error:** ${err.message || 'Unable to connect to Gemini API. Please try again.'}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMessage]);
@@ -505,36 +524,52 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
                   </div>
 
                   {/* Message Action Toolbar (Only for Bot messages) */}
-                  {!isUser && !msg.isError && (
-                    <div className="flex items-center gap-1 mt-1.5 px-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => handleCopyText(msg.id, msg.text)}
-                        className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center gap-1 text-[11px]"
-                        title="Copy message"
-                      >
-                        {isCopied ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-400" />
-                            <span className="text-emerald-400 text-[10px]">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span className="text-[10px]">Copy</span>
-                          </>
-                        )}
-                      </button>
+                  {!isUser && (
+                    <div className="flex items-center gap-1 mt-1.5 px-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                      {msg.isError ? (
+                        <button
+                          onClick={() => {
+                            if (msg.failedPrompt) {
+                              handleSendMessage(msg.failedPrompt);
+                            }
+                          }}
+                          className="px-2 py-1 rounded bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 hover:text-white border border-rose-500/30 transition-colors flex items-center gap-1.5 text-[11px] font-medium cursor-pointer"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          <span>Retry Query</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleCopyText(msg.id, msg.text)}
+                            className="p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center gap-1 text-[11px]"
+                            title="Copy message"
+                          >
+                            {isCopied ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400 text-[10px]">Copied</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span className="text-[10px]">Copy</span>
+                              </>
+                            )}
+                          </button>
 
-                      <button
-                        onClick={() => handleToggleSpeak(msg.id, msg.text)}
-                        className={`p-1 rounded hover:bg-white/10 transition-colors flex items-center gap-1 text-[11px] ${
-                          isSpeaking ? 'text-indigo-400 font-semibold' : 'text-zinc-400 hover:text-white'
-                        }`}
-                        title={isSpeaking ? 'Stop reading' : 'Read aloud with speech synthesis'}
-                      >
-                        {isSpeaking ? <VolumeX className="w-3 h-3 animate-pulse" /> : <Volume2 className="w-3 h-3" />}
-                        <span className="text-[10px]">{isSpeaking ? 'Stop' : 'Voice'}</span>
-                      </button>
+                          <button
+                            onClick={() => handleToggleSpeak(msg.id, msg.text)}
+                            className={`p-1 rounded hover:bg-white/10 transition-colors flex items-center gap-1 text-[11px] ${
+                              isSpeaking ? 'text-indigo-400 font-semibold' : 'text-zinc-400 hover:text-white'
+                            }`}
+                            title={isSpeaking ? 'Stop reading' : 'Read aloud with speech synthesis'}
+                          >
+                            {isSpeaking ? <VolumeX className="w-3 h-3 animate-pulse" /> : <Volume2 className="w-3 h-3" />}
+                            <span className="text-[10px]">{isSpeaking ? 'Stop' : 'Voice'}</span>
+                          </button>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
