@@ -11,6 +11,7 @@ import {
   Flame,
 } from 'lucide-react';
 import { openAboutBlankCloaked } from '../utils/cloak';
+import { handleGameImageError, getPlaceholderGameThumbnail } from '../utils/imageFallback';
 
 const POPULAR_KEYWORDS = [
   'retro bowl', 'slope', '1v1.lol', 'cookie clicker', 'subway surfers', 'bitlife',
@@ -201,25 +202,14 @@ export const LucideGamesView = ({
                     onClick={() => handleGameClick(game)}
                     className="w-full aspect-video rounded-lg bg-[#14141a] border border-[var(--border-color)] relative flex items-center justify-center cursor-pointer overflow-hidden"
                   >
-                    {game.thumbnailUrl && !failedImages[game.id] ? (
-                      <img
-                        src={game.thumbnailUrl}
-                        alt={game.title}
-                        className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all duration-200"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        onError={() => {
-                          setFailedImages((prev) => ({ ...prev, [game.id]: true }));
-                        }}
-                      />
-                    ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center bg-[#18181f] p-2 text-center select-none">
-                        <Gamepad2 className="w-5 h-5 text-zinc-500 mb-1" />
-                        <span className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider line-clamp-1 max-w-[90%]">
-                          {game.title}
-                        </span>
-                      </div>
-                    )}
+                    <img
+                      src={(game.thumbnailUrl || game.thumbnail) || getPlaceholderGameThumbnail(game.title, game.category)}
+                      alt={game.title}
+                      className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all duration-200"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => handleGameImageError(e, game.title, game.category)}
+                    />
 
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm text-white flex items-center justify-center shadow-md">

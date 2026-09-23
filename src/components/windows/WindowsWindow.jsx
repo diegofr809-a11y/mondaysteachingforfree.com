@@ -171,6 +171,8 @@ export const WindowsWindow = ({
     onMaximize();
   };
 
+  if (!isOpen) return null;
+
   const windowStyle = isMaximized
     ? {
         zIndex,

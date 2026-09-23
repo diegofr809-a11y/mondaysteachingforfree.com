@@ -6,6 +6,9 @@ class SoundEffects {
   playPop() {}
   playLaunch() {}
   playToggle() {}
+  playNotification() {}
+  playSuccess() {}
+  playError() {}
 }
 
 export const sounds = new SoundEffects();

@@ -27,8 +27,9 @@ import { NotificationCenterModal } from './components/NotificationCenterModal';
 import { PlayerApp } from './components/player/PlayerApp';
 import { PlayerMiniWidget } from './components/player/PlayerMiniWidget';
 import { SpotifyIcon } from './components/player/SpotifyIcon';
+import { GeminiChatbotView } from './components/GeminiChatbotView';
 import { MusicPlayerProvider } from './context/MusicPlayerContext';
-import { Gamepad2, Home, Heart, Settings, CheckCircle2, X } from 'lucide-react';
+import { Gamepad2, Home, Heart, Settings, CheckCircle2, X, Sparkles } from 'lucide-react';
 import { sounds } from './utils/sound';
 
 export default function App() {
@@ -49,6 +50,7 @@ function AppContent() {
   // Windows 11 Window Manager State (Desktop starts clean with taskbar and shortcuts ready)
   const [windows, setWindows] = useState({
     player: { isOpen: false, isMinimized: false, isMaximized: false },
+    chatbot: { isOpen: false, isMinimized: false, isMaximized: false },
     games: { isOpen: false, isMinimized: false, isMaximized: false },
     home: { isOpen: false, isMinimized: false, isMaximized: false },
     favorites: { isOpen: false, isMinimized: false, isMaximized: false },
@@ -57,6 +59,7 @@ function AppContent() {
   const [activeWindowId, setActiveWindowId] = useState(null);
   const [windowZIndices, setWindowZIndices] = useState({
     player: 25,
+    chatbot: 20,
     games: 20,
     home: 20,
     favorites: 20,
@@ -560,6 +563,25 @@ function AppContent() {
         soundEffectsEnabled={settings.soundEffectsEnabled}
       >
         <PlayerApp />
+      </WindowsWindow>
+
+      {/* WINDOW 6: Gemini AI Chatbot */}
+      <WindowsWindow
+        id="chatbot"
+        title="Gemini AI"
+        subtitle="Multi-turn Assistant"
+        icon={Sparkles}
+        isOpen={windows.chatbot.isOpen}
+        isMinimized={windows.chatbot.isMinimized}
+        isMaximized={windows.chatbot.isMaximized}
+        onMinimize={() => minimizeWindow('chatbot')}
+        onMaximize={() => maximizeWindow('chatbot')}
+        onClose={() => closeWindow('chatbot')}
+        zIndex={windowZIndices.chatbot}
+        onFocus={() => bringWindowToFront('chatbot')}
+        soundEffectsEnabled={settings.soundEffectsEnabled}
+      >
+        <GeminiChatbotView soundEffectsEnabled={settings.soundEffectsEnabled} />
       </WindowsWindow>
 
       {/* DESKTOP MINI PLAYER WIDGET (When Player is minimized or closed but audio is playing) */}

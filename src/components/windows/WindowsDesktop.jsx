@@ -6,6 +6,7 @@ import {
   Search,
   Plus,
   Dices,
+  Sparkles,
 } from 'lucide-react';
 import { sounds } from '../../utils/sound';
 import { SpotifyIcon } from '../player/SpotifyIcon';
@@ -34,6 +35,13 @@ export const WindowsDesktop = ({
       type: 'window',
       windowId: 'player',
       icon: SpotifyIcon,
+    },
+    {
+      id: 'win-chatbot',
+      title: 'Gemini AI',
+      type: 'window',
+      windowId: 'chatbot',
+      icon: Sparkles,
     },
     {
       id: 'win-games',
@@ -81,8 +89,9 @@ export const WindowsDesktop = ({
 
   const handleIconClick = (e, item) => {
     e.stopPropagation();
-    sounds.playClick(settings.soundEffectsEnabled);
+    sounds.playLaunch(settings.soundEffectsEnabled);
     setSelectedIconId(item.id);
+    launchItem(item);
   };
 
   const handleIconDoubleClick = (e, item) => {

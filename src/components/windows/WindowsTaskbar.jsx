@@ -13,10 +13,12 @@ import {
   ChevronUp,
   Shield,
   Clock,
+  Sparkles,
 } from 'lucide-react';
 import { sounds } from '../../utils/sound';
 import { WindowsCalendarFlyout } from './WindowsCalendarFlyout';
 import { SpotifyIcon } from '../player/SpotifyIcon';
+import { handleGameImageError, getPlaceholderGameThumbnail } from '../../utils/imageFallback';
 
 const formatClockTime = (format = '12h') => {
   const now = new Date();
@@ -79,6 +81,11 @@ export const WindowsTaskbar = ({
       id: 'player',
       name: 'Spotify',
       icon: SpotifyIcon,
+    },
+    {
+      id: 'chatbot',
+      name: 'Gemini AI',
+      icon: Sparkles,
     },
     {
       id: 'games',
@@ -212,16 +219,13 @@ export const WindowsTaskbar = ({
             title={`Playing: ${activeGameToPlay.title}`}
             className="relative w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 bg-white/[0.12] border border-white/15 hover:bg-white/[0.18] group cursor-pointer"
           >
-            {activeGameToPlay.thumbnail ? (
-              <img
-                src={activeGameToPlay.thumbnail}
-                alt={activeGameToPlay.title}
-                className="w-5 h-5 rounded object-cover shadow"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <Gamepad2 className="w-5 h-5 text-white" />
-            )}
+            <img
+              src={(activeGameToPlay.thumbnailUrl || activeGameToPlay.thumbnail) || getPlaceholderGameThumbnail(activeGameToPlay.title, activeGameToPlay.category)}
+              alt={activeGameToPlay.title}
+              className="w-5 h-5 rounded object-cover shadow"
+              referrerPolicy="no-referrer"
+              onError={(e) => handleGameImageError(e, activeGameToPlay.title, activeGameToPlay.category)}
+            />
 
             {/* Active game running dot & pill */}
             <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />

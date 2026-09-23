@@ -9,6 +9,7 @@ import {
   X,
   MessageSquarePlus,
 } from 'lucide-react';
+import { handleGameImageError, getPlaceholderGameThumbnail } from '../utils/imageFallback';
 
 export const GameGrid = ({
   games,
@@ -194,22 +195,14 @@ export const GameGrid = ({
                 id={`game-card-${game.id}`}
               >
                 <div className="w-full aspect-video bg-[#0d0f15] border border-[#1a1f2c] rounded-xs flex items-center justify-center relative overflow-hidden">
-                  {game.thumbnailUrl ? (
-                    <img
-                      src={game.thumbnailUrl}
-                      alt={game.title}
-                      className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <div className="text-[#556075] group-hover:text-emerald-400 transition-colors">
-                      <Gamepad2 className="w-5 h-5" />
-                    </div>
-                  )}
+                  <img
+                    src={game.thumbnailUrl || getPlaceholderGameThumbnail(game.title, game.category)}
+                    alt={game.title}
+                    className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    onError={(e) => handleGameImageError(e, game.title, game.category)}
+                  />
 
                   <span className="absolute top-1 left-1 text-[8px] font-black uppercase px-1 rounded-xs bg-black/80 text-emerald-400 border border-white/10">
                     {game.category}

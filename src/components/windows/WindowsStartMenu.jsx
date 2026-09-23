@@ -18,6 +18,7 @@ import {
 import { sounds } from '../../utils/sound';
 import { triggerPanic } from '../../utils/cloak';
 import { SpotifyIcon } from '../player/SpotifyIcon';
+import { handleGameImageError, getPlaceholderGameThumbnail } from '../../utils/imageFallback';
 
 export const WindowsStartMenu = ({
   isOpen,
@@ -85,6 +86,13 @@ export const WindowsStartMenu = ({
       desc: 'Music for everyone',
       icon: SpotifyIcon,
       action: () => onOpenWindow('player'),
+    },
+    {
+      id: 'chatbot',
+      name: 'Gemini AI',
+      desc: 'Multi-turn AI Assistant',
+      icon: Sparkles,
+      action: () => onOpenWindow('chatbot'),
     },
     {
       id: 'games',
@@ -198,16 +206,13 @@ export const WindowsStartMenu = ({
                     className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/10 transition-colors text-left group cursor-pointer"
                   >
                     <div className="w-9 h-9 rounded-lg overflow-hidden bg-black/40 border border-white/10 shrink-0 flex items-center justify-center">
-                      {game.thumbnail ? (
-                        <img
-                          src={game.thumbnail}
-                          alt={game.title}
-                          className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <Gamepad2 className="w-4 h-4 text-sky-400" />
-                      )}
+                      <img
+                        src={(game.thumbnailUrl || game.thumbnail) || getPlaceholderGameThumbnail(game.title, game.category)}
+                        alt={game.title}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => handleGameImageError(e, game.title, game.category)}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-white group-hover:text-sky-300 truncate">
@@ -288,16 +293,13 @@ export const WindowsStartMenu = ({
                     className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-white/[0.07] transition-colors text-left group cursor-pointer border border-transparent hover:border-white/5"
                   >
                     <div className="w-8 h-8 rounded-lg overflow-hidden bg-[#1a1b22] border border-white/10 shrink-0 flex items-center justify-center">
-                      {game.thumbnail ? (
-                        <img
-                          src={game.thumbnail}
-                          alt={game.title}
-                          className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <Gamepad2 className="w-4 h-4 text-zinc-400" />
-                      )}
+                      <img
+                        src={(game.thumbnailUrl || game.thumbnail) || getPlaceholderGameThumbnail(game.title, game.category)}
+                        alt={game.title}
+                        className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => handleGameImageError(e, game.title, game.category)}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-xs font-medium text-zinc-200 group-hover:text-white truncate">

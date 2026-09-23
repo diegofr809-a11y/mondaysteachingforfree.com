@@ -19,6 +19,7 @@ import { ClockWeatherWidget } from './ClockWeatherWidget';
 import { DEFAULT_SHORTCUTS } from '../data/initialData';
 import { getStoredRecentlyOpened, clearStoredRecentlyOpened } from '../utils/storage';
 import { sounds } from '../utils/sound';
+import { handleGameImageError, getPlaceholderGameThumbnail } from '../utils/imageFallback';
 
 export const LucideHomeView = ({
   games = [],
@@ -158,6 +159,14 @@ export const LucideHomeView = ({
           {/* Quick Category Chips */}
           <div className="flex items-center justify-center gap-2 flex-wrap text-xs pt-1">
             <button
+              onClick={() => onSelectView('chatbot')}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 border border-indigo-500/30 text-indigo-300 hover:text-white transition-all cursor-pointer font-medium shadow-sm"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Gemini AI Chat</span>
+            </button>
+
+            <button
               onClick={() => onSelectView('games')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-hover)] border border-[var(--border-color)] text-[var(--text-main)] transition-colors cursor-pointer"
             >
@@ -214,20 +223,14 @@ export const LucideHomeView = ({
               >
                 <div className="flex items-center gap-2.5">
                   <div className="w-10 h-10 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center shrink-0 overflow-hidden">
-                    {item.thumbnail ? (
-                      <img
-                        src={item.thumbnail}
-                        alt={item.title}
-                        className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          e.target.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <Gamepad2 className="w-5 h-5 text-zinc-400" />
-                    )}
+                    <img
+                      src={(item.thumbnailUrl || item.thumbnail) || getPlaceholderGameThumbnail(item.title || item.name, item.category)}
+                      alt={item.title || item.name}
+                      className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => handleGameImageError(e, item.title || item.name, item.category)}
+                    />
                   </div>
                   <div className="truncate flex-1">
                     <h3 className="text-xs font-semibold text-[var(--text-main)] truncate group-hover:text-white transition-colors">
@@ -283,17 +286,14 @@ export const LucideHomeView = ({
                 >
                   <div className="flex items-center gap-2.5 truncate">
                     <div className="w-8 h-8 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center shrink-0 overflow-hidden">
-                      {g.thumbnail ? (
-                        <img
-                          src={g.thumbnail}
-                          alt={g.title}
-                          className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
-                          loading="lazy"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <Gamepad2 className="w-4 h-4 text-zinc-400" />
-                      )}
+                      <img
+                        src={(g.thumbnailUrl || g.thumbnail) || getPlaceholderGameThumbnail(g.title, g.category)}
+                        alt={g.title}
+                        className="w-full h-full object-cover filter brightness-[0.92] contrast-[0.98] group-hover:brightness-100 transition-all"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => handleGameImageError(e, g.title, g.category)}
+                      />
                     </div>
                     <div className="truncate">
                       <div className="text-xs font-semibold text-[var(--text-main)] truncate group-hover:text-white">

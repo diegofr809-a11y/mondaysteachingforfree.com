@@ -80,6 +80,7 @@ export const MusicPlayerProvider = ({ children }) => {
   const [isShuffled, setIsShuffled] = useState(false);
   const [repeatMode, setRepeatMode] = useState('all'); // 'off' | 'all' | 'one'
   const [isNowPlayingOpen, setIsNowPlayingOpen] = useState(false);
+  const [iframeSrc, setIframeSrc] = useState('about:blank');
 
   // SoundCloud HTML5 Widget Refs
   const iframeRef = useRef(null);
@@ -256,8 +257,18 @@ export const MusicPlayerProvider = ({ children }) => {
   useEffect(() => {
     let isMounted = true;
 
+    // Defer loading initial heavy SoundCloud iframe so page paint is instant
+    const timer = setTimeout(() => {
+      if (isMounted) {
+        setIframeSrc(
+          'https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/taylorswiftofficial/the-fate-of-ophelia&auto_play=false&buying=false&liking=false&download=false&sharing=false&show_comments=false&show_playcount=false&show_user=false'
+        );
+      }
+    }, 150);
+
     const bindWidget = () => {
       if (!window.SC || !window.SC.Widget || !iframeRef.current) return false;
+      if (!iframeRef.current.src || iframeRef.current.src === 'about:blank') return false;
       if (widgetRef.current) return true;
 
       try {
@@ -368,7 +379,7 @@ export const MusicPlayerProvider = ({ children }) => {
     return null;
   };
 
-  // Play a specific track - real audio from SoundCloud, no synth buzzing
+  // Play a specific track - authentic full song on SoundCloud
   const playTrack = async (track, newQueue = null) => {
     if (!track) return;
 
@@ -399,7 +410,14 @@ export const MusicPlayerProvider = ({ children }) => {
       return [track, ...filtered].slice(0, 30);
     });
 
-    // 4. Resolve and play SoundCloud stream
+    // 4. Ensure widget is initialized
+    let attempts = 0;
+    while (!widgetRef.current && attempts < 25) {
+      await new Promise((r) => setTimeout(r, 120));
+      attempts++;
+    }
+
+    // 5. Resolve and play authentic full-length SoundCloud track
     try {
       const scUrl = await resolveTrackUrl(track);
       if (scUrl && widgetRef.current) {
@@ -415,7 +433,7 @@ export const MusicPlayerProvider = ({ children }) => {
               if (ms > 0) {
                 const durSec = ms / 1000;
                 const expectedSec = parseDurationToSeconds(track.duration);
-                // Detect 30-second preview limit on stream
+                // If SoundCloud returned a 30-second preview, automatically fetch the full-length song
                 if (durSec <= 35 && expectedSec > 60 && !track._retriedFull) {
                   track._retriedFull = true;
                   resolveTrackUrl(track, true).then((fullUrl) => {
@@ -445,6 +463,11 @@ export const MusicPlayerProvider = ({ children }) => {
                 setCurrentTrack((prev) => (prev ? { ...prev, coverUrl: hqArt } : prev));
               }
             });
+
+            setIsPlaying(true);
+            setIsLoading(false);
+            setPlaybackError(null);
+            startTicker();
           },
         });
       } else {
@@ -651,6 +674,34 @@ export const MusicPlayerProvider = ({ children }) => {
       .filter(Boolean);
   }, [likedSongIds, tracksMap]);
 
+  // MediaSession API Integration (Chromebook hardware media keys and shelf controls)
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack) return;
+
+    try {
+      navigator.mediaSession.metadata = new window.MediaMetadata({
+        title: currentTrack.title,
+        artist: currentTrack.artist,
+        album: currentTrack.album || 'Spotify Web',
+        artwork: [
+          {
+            src: currentTrack.coverUrl || 'https://i1.sndcdn.com/artworks-VIQ3As8XCQ1K-0-t500x500.jpg',
+            sizes: '512x512',
+            type: 'image/jpeg',
+          },
+        ],
+      });
+
+      navigator.mediaSession.setActionHandler('play', () => resumePlayback());
+      navigator.mediaSession.setActionHandler('pause', () => pausePlayback());
+      navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack());
+      navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack());
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime != null) seek(details.seekTime);
+      });
+    } catch (e) {}
+  }, [currentTrack]);
+
   return (
     <MusicPlayerContext.Provider
       value={{
@@ -701,21 +752,22 @@ export const MusicPlayerProvider = ({ children }) => {
     >
       {children}
 
-      {/* Hidden persistent SoundCloud HTML5 Widget Audio Engine */}
+      {/* Persistent SoundCloud HTML5 Widget Audio Engine */}
       <iframe
         ref={iframeRef}
         id="sc-music-engine-widget"
-        src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/taylorswiftofficial/the-fate-of-ophelia&auto_play=false&buying=false&liking=false&download=false&sharing=false&show_comments=false&show_playcount=false&show_user=false"
-        allow="autoplay; encrypted-media"
+        src={iframeSrc}
+        loading="lazy"
+        allow="autoplay *; encrypted-media *; fullscreen *"
         style={{
           position: 'fixed',
           bottom: 0,
           right: 0,
-          width: 1,
-          height: 1,
-          opacity: 0.01,
+          width: 200,
+          height: 100,
+          opacity: 0.05,
           pointerEvents: 'none',
-          zIndex: -1,
+          zIndex: 0,
         }}
         title="SoundCloud Audio Engine"
       />
