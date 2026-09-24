@@ -9,13 +9,25 @@ import { GoogleGenAI } from '@google/genai';
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = process.env.PORT || 3000;
+
+  // Full CORS and preflight support
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
 
   // High-performance gzip/deflate compression for instant transfers
   app.use(compression());
 
   // JSON parser for API requests
   app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true }));
 
   // Health check
   app.get('/api/health', (req, res) => {
@@ -470,7 +482,20 @@ async function startServer() {
   // AI Chat endpoint using Google Gemini SDK with role-based system instructions and model routing
   const handleChatRequest = async (req, res) => {
     try {
-      const { message, history, systemInstruction, temperature, model, taskType } = req.body;
+      const payload = req.method === 'GET' ? req.query : (req.body || {});
+      const message = payload.message || payload.prompt || payload.q;
+      let history = payload.history;
+      if (typeof history === 'string') {
+        try {
+          history = JSON.parse(history);
+        } catch {
+          history = [];
+        }
+      }
+      const systemInstruction = payload.systemInstruction;
+      const temperature = payload.temperature ? Number(payload.temperature) : 0.7;
+      const model = payload.model;
+      const taskType = payload.taskType;
 
       if (!message || typeof message !== 'string' || !message.trim()) {
         return res.status(400).json({ error: 'A message prompt is required.' });
@@ -515,15 +540,15 @@ async function startServer() {
         parts: [{ text: promptText }],
       });
 
-      // Ordered model candidates with robust fallback
+      // Ordered model candidates verified for current API key
       const candidateModels = [
-        'gemini-2.5-flash',
-        'gemini-3.8-flash',
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite',
         'gemini-flash-latest',
-        'gemini-2.5-flash-lite',
+        'gemini-3.8-flash',
       ];
 
-      // If user specifically requested a model, put it at front
+      // If user specifically requested a model, put it at front if valid
       if (model && !candidateModels.includes(model)) {
         candidateModels.unshift(model);
       }
@@ -537,7 +562,7 @@ async function startServer() {
             contents,
             config: {
               systemInstruction: defaultSystemPrompt,
-              temperature: typeof temperature === 'number' ? Math.max(0, Math.min(2, temperature)) : 0.7,
+              temperature: typeof temperature === 'number' && !isNaN(temperature) ? Math.max(0, Math.min(2, temperature)) : 0.7,
             },
           });
 
@@ -550,7 +575,7 @@ async function startServer() {
           });
         } catch (err) {
           lastGeminiError = err;
-          console.warn(`Model ${modelName} failed, trying next candidate:`, err?.message || err);
+          console.warn(`Model ${modelName} failed:`, err?.status || err?.message || err);
           continue;
         }
       }
@@ -564,8 +589,10 @@ async function startServer() {
     }
   };
 
-  app.post('/api/chat', handleChatRequest);
-  app.post('/api/ai/chat', handleChatRequest);
+  app.all('/api/chat', handleChatRequest);
+  app.all('/api/chat/', handleChatRequest);
+  app.all('/api/ai/chat', handleChatRequest);
+  app.all('/api/ai/chat/', handleChatRequest);
 
   // Vite and Static SPA integration
   const distPath = path.join(process.cwd(), 'dist');

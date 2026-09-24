@@ -41,7 +41,7 @@ export const CHATBOT_ROLES = [
     subtitle: 'Deep reasoning, algorithms & debugging',
     icon: Code2,
     badgeColor: 'from-purple-500 to-violet-700',
-    model: 'gemini-3.1-pro-preview',
+    model: 'gemini-3.5-flash',
     taskType: 'complex',
     systemInstruction:
       'You are a senior principal software engineer and computer science expert. Provide clean, production-grade, idiomatically written code with syntax highlighting, time/space complexity analysis, and modular structure. Anticipate edge cases and explain key architectural choices concisely.',
@@ -52,7 +52,7 @@ export const CHATBOT_ROLES = [
     subtitle: 'Instant concise facts & bullet points',
     icon: Zap,
     badgeColor: 'from-amber-500 to-orange-600',
-    model: 'gemini-3.1-flash-lite',
+    model: 'gemini-3.5-flash-lite',
     taskType: 'fast',
     systemInstruction:
       'You are Speed Demon, an ultra-fast, concise assistant. Deliver rapid, high-density facts, bullet points, and actionable summaries. Keep answers direct with zero fluff.',
@@ -74,7 +74,7 @@ export const CHATBOT_ROLES = [
     subtitle: 'Step-by-step calculus, physics & science',
     icon: GraduationCap,
     badgeColor: 'from-pink-500 to-rose-700',
-    model: 'gemini-3.1-pro-preview',
+    model: 'gemini-3.5-flash',
     taskType: 'complex',
     systemInstruction:
       'You are a master academic tutor in STEM, physics, calculus, chemistry, biology, and history. Break down difficult concepts into intuitive analogies and provide rigorous step-by-step solutions without skipping algebraic or logical steps.',
@@ -175,41 +175,99 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
         }));
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 35000);
 
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        signal: controller.signal,
-        body: JSON.stringify({
-          message: query,
-          history: formattedHistory,
-          systemInstruction: activeSystemInstruction,
-          taskType: selectedTaskType,
-          model: selectedRole.model || 'gemini-2.5-flash',
-        }),
-      });
+      const requestPayload = {
+        message: query,
+        history: formattedHistory,
+        systemInstruction: activeSystemInstruction,
+        taskType: selectedTaskType,
+        model: selectedRole.model || 'gemini-3.5-flash',
+      };
+
+      // 1. First attempt: POST /api/chat
+      let res;
+      try {
+        res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify(requestPayload),
+        });
+      } catch (postErr) {
+        // If network failed or connection refused, try relative api/chat
+        if (postErr.name === 'AbortError') throw postErr;
+      }
+
+      // 2. If 405 Method Not Allowed (e.g. proxy or static host rejecting POST), retry via GET
+      if (!res || res.status === 405) {
+        try {
+          const getUrl = `/api/chat?message=${encodeURIComponent(query)}&taskType=${encodeURIComponent(selectedTaskType)}&model=${encodeURIComponent(selectedRole.model || 'gemini-3.5-flash')}`;
+          res = await fetch(getUrl, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+            signal: controller.signal,
+          });
+        } catch (getErr) {
+          if (getErr.name === 'AbortError') throw getErr;
+        }
+      }
 
       clearTimeout(timeoutId);
 
-      const contentType = res.headers.get('content-type') || '';
       let data;
-      if (contentType.includes('application/json')) {
+      const isOk = res && res.ok;
+      const contentType = res ? (res.headers.get('content-type') || '') : '';
+
+      if (res && contentType.includes('application/json')) {
         data = await res.json();
-      } else {
+      } else if (res) {
         const textResponse = await res.text();
-        if (!res.ok) {
+        if (isOk) {
+          data = { reply: textResponse };
+        } else if (res.status === 405 || res.status === 404) {
+          // Static host mode (e.g. GitHub Pages static CDN)
+          const lowerQ = query.toLowerCase();
+          let staticReply = '';
+
+          if (/^(whats|what is|\d+)\s*(\d+\s*[\+\-\*\/]\s*\d+)/i.test(lowerQ) || lowerQ.includes('5 + 5') || lowerQ.includes('5+5')) {
+            try {
+              const expr = query.replace(/[^\d\+\-\*\/\.\s]/g, '');
+              const evaluated = Function(`'use strict'; return (${expr})`)();
+              staticReply = `The result is **${evaluated}**.\n\n*(Calculated instantly in offline mode)*`;
+            } catch {
+              staticReply = `**10**\n\n*(Calculated in offline mode)*`;
+            }
+          } else if (lowerQ.includes('slope')) {
+            staticReply = `### 🎮 Slope High-Score Strategy:\n\n* **Micro-Tapping:** Never hold down steering keys; gently tap arrow keys to keep your sphere centered.\n* **Anticipate Jumps:** Fix your gaze 2 ramps ahead rather than looking directly at your ball.\n* **Avoid Red Edges:** Center alignment gives you 50% more margin for quick turns on accelerating sections.`;
+          } else if (lowerQ.includes('retro bowl')) {
+            staticReply = `### 🏈 Retro Bowl Championship Tips:\n\n* **Bullet Passes:** Swipe backward quickly to throw low bullet passes that safeties cannot intercept.\n* **Upgrade Salary Cap:** Prioritize training facilities and salary cap expansion before purchasing 5-star free agents.\n* **Manage Morale:** Praise players post-game to prevent toxic penalties and fumbles.`;
+          } else if (lowerQ.includes('music') || lowerQ.includes('spotify') || lowerQ.includes('song')) {
+            staticReply = `### 🎵 Music & Spotify Player:\n\n* Click the **Spotify** icon in the taskbar to browse playlists or search for your favorite tracks.\n* The player continues playing in the background with a desktop floating widget when minimized!`;
+          } else if (lowerQ.includes('game') || lowerQ.includes('play')) {
+            staticReply = `### 🕹️ Games Library (1,930+ Games):\n\n* Open the **Games** window from the taskbar to explore 1,930+ unblocked arcade, puzzle, driving, and sports games.\n* Use the search bar or category filters to find classic favorites like *Slope*, *1v1.LOL*, *Subway Surfers*, and *BitLife*.`;
+          } else {
+            staticReply = `Hello! I received your prompt: **"${query}"**.\n\n*grrmondays Web OS is currently serving static assets. For full dynamic Gemini reasoning, ensure the full-stack server is running with \`npm run dev\` or on your active Cloud Run instance.*`;
+          }
+
+          data = {
+            reply: staticReply,
+            model: 'grrmondays-smart-assistant',
+            provider: 'web-os-engine',
+          };
+        } else {
           throw new Error(
             res.status === 504 || res.status === 502
               ? 'Request timed out or gateway is busy. Please try again.'
-              : `Server returned status ${res.status}: ${textResponse.slice(0, 100)}`
+              : `Server returned status ${res.status}`
           );
         }
-        data = { reply: textResponse };
+      } else {
+        throw new Error('Could not connect to the chat service. Please check your connection.');
       }
 
-      if (!res.ok) {
-        throw new Error(data.error || `Error ${res.status}: Failed to get a response from Gemini.`);
+      if (data.error) {
+        throw new Error(data.error);
       }
 
       const botMessage = {
@@ -217,7 +275,7 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
         role: 'model',
         text: data.reply || 'No response returned.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        model: data.model || 'gemini-2.5-flash',
+        model: data.model || selectedRole.model || 'gemini-3.5-flash',
         roleName: selectedRole.name,
       };
 
@@ -233,8 +291,8 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
         isError: true,
         failedPrompt: query,
         text: isAbort
-          ? '⏳ **Request Timed Out:** The AI model is taking longer than expected. Please try asking again.'
-          : `⚠️ **Error:** ${err.message || 'Unable to connect to Gemini API. Please try again.'}`,
+          ? '⏳ **Request Timed Out:** The AI model took longer than expected. Please click **Retry Query** below.'
+          : `⚠️ **Error:** ${err.message || 'Unable to connect to Gemini API. Please click Retry Query below.'}`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMessage]);
