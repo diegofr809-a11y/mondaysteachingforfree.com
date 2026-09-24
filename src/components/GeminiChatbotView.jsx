@@ -190,24 +190,35 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
       try {
         res = await fetch('/api/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+          },
+          credentials: 'include',
           signal: controller.signal,
           body: JSON.stringify(requestPayload),
         });
       } catch (postErr) {
-        // If network failed or connection refused, try relative api/chat
         if (postErr.name === 'AbortError') throw postErr;
       }
 
-      // 2. If 405 Method Not Allowed (e.g. proxy or static host rejecting POST), retry via GET
-      if (!res || res.status === 405) {
+      // 2. If POST failed or returned non-200, try GET /api/chat fallback
+      if (!res || !res.ok) {
         try {
           const getUrl = `/api/chat?message=${encodeURIComponent(query)}&taskType=${encodeURIComponent(selectedTaskType)}&model=${encodeURIComponent(selectedRole.model || 'gemini-3.5-flash')}`;
-          res = await fetch(getUrl, {
+          const getRes = await fetch(getUrl, {
             method: 'GET',
-            headers: { 'Accept': 'application/json' },
+            headers: {
+              'Accept': 'application/json',
+              'X-Requested-With': 'XMLHttpRequest',
+            },
+            credentials: 'include',
             signal: controller.signal,
           });
+          if (getRes.ok) {
+            res = getRes;
+          }
         } catch (getErr) {
           if (getErr.name === 'AbortError') throw getErr;
         }
@@ -215,59 +226,30 @@ export const GeminiChatbotView = ({ soundEffectsEnabled = true }) => {
 
       clearTimeout(timeoutId);
 
+      if (!res) {
+        throw new Error('Unable to connect to the Gemini service. Please check your network and try again.');
+      }
+
       let data;
-      const isOk = res && res.ok;
-      const contentType = res ? (res.headers.get('content-type') || '') : '';
+      const contentType = res.headers.get('content-type') || '';
 
-      if (res && contentType.includes('application/json')) {
+      if (contentType.includes('application/json')) {
         data = await res.json();
-      } else if (res) {
+      } else {
         const textResponse = await res.text();
-        if (isOk) {
+        if (res.ok) {
           data = { reply: textResponse };
-        } else if (res.status === 405 || res.status === 404) {
-          // Static host mode (e.g. GitHub Pages static CDN)
-          const lowerQ = query.toLowerCase();
-          let staticReply = '';
-
-          if (/^(whats|what is|\d+)\s*(\d+\s*[\+\-\*\/]\s*\d+)/i.test(lowerQ) || lowerQ.includes('5 + 5') || lowerQ.includes('5+5')) {
-            try {
-              const expr = query.replace(/[^\d\+\-\*\/\.\s]/g, '');
-              const evaluated = Function(`'use strict'; return (${expr})`)();
-              staticReply = `The result is **${evaluated}**.\n\n*(Calculated instantly in offline mode)*`;
-            } catch {
-              staticReply = `**10**\n\n*(Calculated in offline mode)*`;
-            }
-          } else if (lowerQ.includes('slope')) {
-            staticReply = `### 🎮 Slope High-Score Strategy:\n\n* **Micro-Tapping:** Never hold down steering keys; gently tap arrow keys to keep your sphere centered.\n* **Anticipate Jumps:** Fix your gaze 2 ramps ahead rather than looking directly at your ball.\n* **Avoid Red Edges:** Center alignment gives you 50% more margin for quick turns on accelerating sections.`;
-          } else if (lowerQ.includes('retro bowl')) {
-            staticReply = `### 🏈 Retro Bowl Championship Tips:\n\n* **Bullet Passes:** Swipe backward quickly to throw low bullet passes that safeties cannot intercept.\n* **Upgrade Salary Cap:** Prioritize training facilities and salary cap expansion before purchasing 5-star free agents.\n* **Manage Morale:** Praise players post-game to prevent toxic penalties and fumbles.`;
-          } else if (lowerQ.includes('music') || lowerQ.includes('spotify') || lowerQ.includes('song')) {
-            staticReply = `### 🎵 Music & Spotify Player:\n\n* Click the **Spotify** icon in the taskbar to browse playlists or search for your favorite tracks.\n* The player continues playing in the background with a desktop floating widget when minimized!`;
-          } else if (lowerQ.includes('game') || lowerQ.includes('play')) {
-            staticReply = `### 🕹️ Games Library (1,930+ Games):\n\n* Open the **Games** window from the taskbar to explore 1,930+ unblocked arcade, puzzle, driving, and sports games.\n* Use the search bar or category filters to find classic favorites like *Slope*, *1v1.LOL*, *Subway Surfers*, and *BitLife*.`;
-          } else {
-            staticReply = `Hello! I received your prompt: **"${query}"**.\n\n*grrmondays Web OS is currently serving static assets. For full dynamic Gemini reasoning, ensure the full-stack server is running with \`npm run dev\` or on your active Cloud Run instance.*`;
-          }
-
-          data = {
-            reply: staticReply,
-            model: 'grrmondays-smart-assistant',
-            provider: 'web-os-engine',
-          };
         } else {
           throw new Error(
             res.status === 504 || res.status === 502
-              ? 'Request timed out or gateway is busy. Please try again.'
-              : `Server returned status ${res.status}`
+              ? 'Request timed out or gateway is busy. Please click Retry below.'
+              : `Server returned status ${res.status}: ${textResponse.slice(0, 80)}`
           );
         }
-      } else {
-        throw new Error('Could not connect to the chat service. Please check your connection.');
       }
 
-      if (data.error) {
-        throw new Error(data.error);
+      if (!res.ok || data.error) {
+        throw new Error(data?.error || `Error ${res.status}: Failed to get a response from Gemini.`);
       }
 
       const botMessage = {
